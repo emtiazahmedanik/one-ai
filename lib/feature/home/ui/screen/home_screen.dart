@@ -22,7 +22,10 @@ class HomeScreen extends StatelessWidget {
                 final item = homeScreenController.filteredList[index];
                 return InkWell(
                   onTap: () {
-                    Get.toNamed(AppRoute.getWebViewScreen,arguments: index);
+                    Get.toNamed(
+                      AppRoute.getWebViewScreen,arguments: index,
+               
+                      );
                   },
                   child: Padding(
                     padding: const EdgeInsets.all(4.0),

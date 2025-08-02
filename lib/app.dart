@@ -11,6 +11,7 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GetMaterialApp(
+      debugShowCheckedModeBanner: false,
       initialBinding: ControllerBinder(),
       getPages: AppRoute.routes,
       title: 'One Ai',

@@ -10,7 +10,15 @@ class AppRoute {
   static String get getWebViewScreen => webViewScreen;
 
   static List<GetPage> routes = [
-    GetPage(name: homeScreen, page: () => HomeScreen()),
-    GetPage(name: webViewScreen, page: () => WebviewScreen())
+    GetPage(
+      name: homeScreen,
+      page: () => HomeScreen(),
+      transition: Transition.leftToRight,
+    ),
+    GetPage(
+      name: webViewScreen,
+      page: () => WebviewScreen(),
+      transition: Transition.leftToRight,
+    ),
   ];
 }
