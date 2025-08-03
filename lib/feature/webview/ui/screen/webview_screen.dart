@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:get/get.dart';
@@ -10,9 +11,33 @@ import 'package:file_picker/file_picker.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 // ignore: must_be_immutable
-class WebviewScreen extends StatelessWidget {
+class WebviewScreen extends StatefulWidget {
   WebviewScreen({super.key});
 
+  @override
+  State<WebviewScreen> createState() => _WebviewScreenState();
+}
+
+class _WebviewScreenState extends State<WebviewScreen> {
+
+  @override
+  void initState() {
+    super.initState();
+    pullToRefreshController = kIsWeb
+        ? null
+        : PullToRefreshController(
+      settings: pullToRefreshSettings,
+      onRefresh: () async {
+        if (defaultTargetPlatform == TargetPlatform.android) {
+          webViewController?.reload();
+        } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+          webViewController?.loadUrl(
+              urlRequest:
+              URLRequest(url: await webViewController?.getUrl()));
+        }
+      },
+    );
+  }
   void onBackPressed() async {
     if (await webViewController.canGoBack()) {
       webViewController.goBack();
@@ -23,9 +48,20 @@ class WebviewScreen extends StatelessWidget {
   }
 
   final int index = Get.arguments;
+
   final homeScreenController = Get.find<HomeScreenController>();
+
   late InAppWebViewController webViewController;
+
   final webViewScreenController = Get.find<WebViewScreenController>();
+
+  PullToRefreshController? pullToRefreshController;
+
+  PullToRefreshSettings pullToRefreshSettings = PullToRefreshSettings(
+    color: Colors.blue,
+  );
+
+  bool pullToRefreshEnabled = true;
 
   @override
   Widget build(BuildContext context) {
@@ -61,7 +97,12 @@ class WebviewScreen extends StatelessWidget {
             children: [
               InAppWebView(
                 initialUrlRequest: URLRequest(url: WebUri(url)),
+                pullToRefreshController: pullToRefreshController,
                 initialSettings: InAppWebViewSettings(
+                  supportMultipleWindows: true,
+                  javaScriptCanOpenWindowsAutomatically: true,
+                  databaseEnabled: true,
+                  allowFileAccess: true,
                   javaScriptEnabled: true,
                   cacheEnabled: true,
                   useShouldOverrideUrlLoading: true,
@@ -106,6 +147,15 @@ class WebviewScreen extends StatelessWidget {
                 onCreateWindow: (controller, request) async {
                   // You can open a dialog or new screen for popups if needed
                   return true;
+                },
+                onPermissionRequest: (controller, request) async {
+                  return PermissionResponse(
+                    resources: request.resources,
+                    action: PermissionResponseAction.GRANT,
+                  );
+                },
+                onReceivedError: (controller, request, error) {
+                  pullToRefreshController?.endRefreshing();
                 },
               ),
 
@@ -156,6 +206,60 @@ class WebviewScreen extends StatelessWidget {
       }
     } else {
       Get.snackbar("Permission Denied", "Cannot access files.");
+    }
+  }
+
+  // Future<void> _handleFilePicker(InAppWebViewController controller) async {
+  //   var permissionStatus = await Permission.photos.request();
+  //   if (permissionStatus.isGranted) {
+  //     FilePickerResult? result = await FilePicker.platform.pickFiles(
+  //       type: FileType.any, // Support all file types for ChatGPT
+  //       withData: true,
+  //     );
+  //
+  //     if (result != null && result.files.single.bytes != null) {
+  //       final base64 = base64Encode(result.files.single.bytes!);
+  //       final name = result.files.single.name;
+  //       final mimeType = _getMimeType(result.files.single.extension);
+  //
+  //       await controller.evaluateJavascript(
+  //         source: '''
+  //         console.log('Injecting file: $name, type: $mimeType');
+  //         const fileInput = document.querySelector('input[type=file]');
+  //         if (fileInput) {
+  //           const blob = new Blob([Uint8Array.from(atob("$base64"), c => c.charCodeAt(0))], {type: "$mimeType"});
+  //           const file = new File([blob], "$name", {type: "$mimeType"});
+  //           const dataTransfer = new DataTransfer();
+  //           dataTransfer.items.add(file);
+  //           fileInput.files = dataTransfer.files;
+  //           fileInput.dispatchEvent(new Event('input', { bubbles: true }));
+  //           fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+  //         } else {
+  //           console.log('No file input found');
+  //         }
+  //       ''',
+  //       );
+  //     } else {
+  //       debugPrint('File picker returned no file or bytes');
+  //     }
+  //   } else {
+  //     Get.snackbar("Permission Denied", "Cannot access files.");
+  //   }
+  // }
+
+  String _getMimeType(String? extension) {
+    switch (extension?.toLowerCase()) {
+      case 'jpg':
+      case 'jpeg':
+        return 'image/jpeg';
+      case 'png':
+        return 'image/png';
+      case 'pdf':
+        return 'application/pdf';
+      case 'txt':
+        return 'text/plain';
+      default:
+        return 'application/octet-stream';
     }
   }
 }

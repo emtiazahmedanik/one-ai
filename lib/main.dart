@@ -15,6 +15,7 @@ Future<void> initializePermission() async {
     Permission.camera,
     Permission.microphone,
     Permission.storage,
+    Permission.audio,
     Permission.photos,
     if (Platform.isAndroid) Permission.manageExternalStorage,
   ].request();
