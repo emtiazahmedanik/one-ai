@@ -14,6 +14,7 @@ class SearchBarMain extends StatelessWidget {
       children: [
         Expanded(
           child: TextFormField(
+            autofocus: false,
             controller: homeScreenController.searchController,
             cursorColor: Colors.grey,
             decoration: InputDecoration(
