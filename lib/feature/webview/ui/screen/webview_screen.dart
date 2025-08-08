@@ -19,25 +19,27 @@ class WebviewScreen extends StatefulWidget {
 }
 
 class _WebviewScreenState extends State<WebviewScreen> {
-
   @override
   void initState() {
     super.initState();
     pullToRefreshController = kIsWeb
         ? null
         : PullToRefreshController(
-      settings: pullToRefreshSettings,
-      onRefresh: () async {
-        if (defaultTargetPlatform == TargetPlatform.android) {
-          webViewController?.reload();
-        } else if (defaultTargetPlatform == TargetPlatform.iOS) {
-          webViewController?.loadUrl(
-              urlRequest:
-              URLRequest(url: await webViewController?.getUrl()));
-        }
-      },
-    );
+            settings: pullToRefreshSettings,
+            onRefresh: () async {
+              if (defaultTargetPlatform == TargetPlatform.android) {
+                webViewController?.reload();
+              } else if (defaultTargetPlatform == TargetPlatform.iOS) {
+                webViewController?.loadUrl(
+                  urlRequest: URLRequest(
+                    url: await webViewController?.getUrl(),
+                  ),
+                );
+              }
+            },
+          );
   }
+
   void onBackPressed() async {
     if (await webViewController.canGoBack()) {
       webViewController.goBack();
@@ -62,6 +64,8 @@ class _WebviewScreenState extends State<WebviewScreen> {
   );
 
   bool pullToRefreshEnabled = true;
+
+  bool _isFilePickerActive = false;
 
   @override
   Widget build(BuildContext context) {
@@ -127,16 +131,8 @@ class _WebviewScreenState extends State<WebviewScreen> {
                 },
                 onLoadStop: (controller, uri) async {
                   // Inject JS to handle file input
-                  await controller.evaluateJavascript(
-                    source: """
-                    document.querySelectorAll('input[type=file]').forEach(el => {
-                      el.addEventListener('click', (e) => {
-                        e.preventDefault();
-                        window.flutter_inappwebview.callHandler('fileInputClicked');
-                      });
-                    });
-                  """,
-                  );
+                  
+                  
                 },
                 onProgressChanged: (controller, progress) {
                   webViewScreenController.progress.value = progress / 100;
@@ -177,38 +173,46 @@ class _WebviewScreenState extends State<WebviewScreen> {
   }
 
   Future<void> _handleFilePicker(InAppWebViewController controller) async {
-    var permissionStatus = await Permission.photos.request();
-    if (permissionStatus.isGranted) {
-      FilePickerResult? result = await FilePicker.platform.pickFiles(
-        type: FileType.image,
-        withData: true,
-      );
+    if (_isFilePickerActive) return; // Don't open another picker
 
-      if (result != null && result.files.single.bytes != null) {
-        final base64 = base64Encode(result.files.single.bytes!);
-        final name = result.files.single.name;
+    _isFilePickerActive = true;
 
-        // Optionally inject back to input (not fully functional due to browser restrictions)
-        await controller.evaluateJavascript(
-          source:
-              '''
-          const fileInput = document.querySelector('input[type=file]');
-          if (fileInput) {
-            const blob = new Blob([Uint8Array.from(atob("$base64"), c => c.charCodeAt(0))], {type: 'image/jpeg'});
-            const file = new File([blob], "$name", {type: "image/jpeg"});
-            const dataTransfer = new DataTransfer();
-            dataTransfer.items.add(file);
-            fileInput.files = dataTransfer.files;
-            fileInput.dispatchEvent(new Event('change'));
-          }
-        ''',
+    try {
+      var permissionStatus = await Permission.photos.request();
+      if (permissionStatus.isGranted) {
+        FilePickerResult? result = await FilePicker.platform.pickFiles(
+          type: FileType.image,
+          withData: true,
         );
+
+        if (result != null && result.files.single.bytes != null) {
+          final base64 = base64Encode(result.files.single.bytes!);
+          final name = result.files.single.name;
+
+          await controller.evaluateJavascript(
+            source:
+                '''
+            const fileInput = document.querySelector('input[type=file]');
+            if (fileInput) {
+              const blob = new Blob([Uint8Array.from(atob("$base64"), c => c.charCodeAt(0))], {type: 'image/jpeg'});
+              const file = new File([blob], "$name", {type: "image/jpeg"});
+              const dataTransfer = new DataTransfer();
+              dataTransfer.items.add(file);
+              fileInput.files = dataTransfer.files;
+              fileInput.dispatchEvent(new Event('change'));
+            }
+          ''',
+          );
+        }
+      } else {
+        Get.snackbar("Permission Denied", "Cannot access files.");
       }
-    } else {
-      Get.snackbar("Permission Denied", "Cannot access files.");
+    } catch (e) {
+      debugPrint("File picker error: $e");
+    } finally {
+      _isFilePickerActive = false;
     }
   }
-
   // Future<void> _handleFilePicker(InAppWebViewController controller) async {
   //   var permissionStatus = await Permission.photos.request();
   //   if (permissionStatus.isGranted) {
