@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:one_ai/constants/ai_list.dart';
 
 class HomeScreenController extends GetxController {
   final TextEditingController searchController = TextEditingController();
@@ -20,48 +21,36 @@ class HomeScreenController extends GetxController {
     }
   }
 
-  RxList<Map<String, dynamic>> aiList = [
-    {
-      'imagePath': 'assets/images/chatgpt.png',
-      'title': 'ChatGpt',
-      'url': 'https://chatgpt.com/',
-    },
-    {
-      'imagePath': 'assets/images/gemini.png',
-      'title': 'Gemini',
-      'url': 'https://gemini.google.com/app',
-    },
-    {
-      'imagePath': 'assets/images/perplexity.webp',
-      'title': 'Perplexity',
-      'url': 'https://www.perplexity.ai/',
-    },
-    {
-      'imagePath': 'assets/images/grok.webp',
-      'title': 'Grok',
-      'url': 'https://grok.com/',
-    },
-    {
-      'imagePath': 'assets/images/deepseek.webp',
-      'title': 'DeepSeek ',
-      'url': 'https://chat.deepseek.com/',
-    },
-    {
-      'imagePath': 'assets/images/mistral.webp',
-      'title': 'Mistral ',
-      'url': 'https://chat.mistral.ai/chat',
-    },
-    {
-      'imagePath': 'assets/images/copilot.webp',
-      'title': 'Copilot ',
-      'url': 'https://copilot.microsoft.com/chats',
-    },
-    {
-      'imagePath': 'assets/images/blackbox.png',
-      'title': 'BlackBox ',
-      'url': 'https://www.blackbox.ai/',
-    },
-  ].obs;
+  void filterSearchResultsWithTag() {
+    final String selectedTag = tagList[selectedTagIndex.value];
+    final actualTag = AiList.tagMap[selectedTag] ?? 'All';
+
+    // Start with the full list
+    List<Map<String, dynamic>> results = aiList;
+
+    // If a specific tag is selected (not "All"), filter by tag
+    if (selectedTag == 'All') {
+      filteredList.assignAll(aiList);
+    }else{
+      debugPrint('Inside else: $actualTag');
+      results = results
+          .where((element) =>
+      element['tag']?.toString().toLowerCase() == actualTag.toLowerCase())
+          .toList();
+      filteredList.assignAll(results);
+      debugPrint('List:$results');
+    }
+
+  }
+
+
+  RxInt selectedTagIndex = 0.obs;
+
+  List<String> get tagList => AiList.tagMap.keys.toList();
+
+  RxList<Map<String, dynamic>> aiList = AiList.aiList.obs;
+
+
 
   @override
   void onInit() {
