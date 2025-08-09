@@ -40,6 +40,14 @@ dependencies:
   permission_handler: ^12.0.1
   file_picker: ^10.2.1
   http: ^1.5.0
+  flutter_launcher_icons: ^0.14.4
+  logger: ^2.6.1
+
+flutter_icons:
+  android: true
+  ios: true
+  image_path: "assets/images/robot.png"
+  min_sdk_android: 21
 
 dev_dependencies:
   flutter_test:
