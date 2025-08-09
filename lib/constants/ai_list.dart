@@ -4,6 +4,8 @@ class AiList{
     'All': 'All',
     'Ai Assistant': 'Assistant',
     'Ai Writing': 'Writing',
+    'Ai Audio': 'Audio',
+    'Ai Music':'Music'
 
   };
 
@@ -86,5 +88,29 @@ class AiList{
       'url': 'https://app.copy.ai/',
       'tag': 'Writing'
     },
+    {
+      "imagePath": "assets/images/adobe podcast.png",
+      "title": "Adobe Podcast",
+      "url": "https://podcast.adobe.com/en",
+      "tag": "Audio"
+    },
+    {
+      "imagePath": "assets/images/elevenlabs.webp",
+      "title": "ElevenLabs",
+      "url": "https://elevenlabs.io/",
+      "tag": "Audio"
+    },
+    {
+      "imagePath": "assets/images/udio-color.webp",
+      "title": "udio.ai",
+      "url": "https://www.udio.com/home",
+      "tag": "Music"
+    },
+    {
+      "imagePath": "assets/images/suno.webp",
+      "title": "Suno Ai",
+      "url": "https://suno.com/home",
+      "tag": "Music"
+    }
   ];
 }

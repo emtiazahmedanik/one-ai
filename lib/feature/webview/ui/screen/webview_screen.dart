@@ -1,13 +1,15 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_inappwebview/flutter_inappwebview.dart';
 import 'package:get/get.dart';
-import 'package:one_ai/constants/colors.dart';
+import 'package:http/http.dart' as http;
 import 'package:one_ai/feature/home/controllers/home_screen_controller.dart';
 import 'package:one_ai/feature/webview/controllers/web_view_controller.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 // ignore: must_be_immutable
@@ -80,21 +82,26 @@ class _WebviewScreenState extends State<WebviewScreen> {
       },
       child: Scaffold(
         appBar: AppBar(
-          backgroundColor: Colors.white,
+          backgroundColor: Colors.transparent,
           leading: IconButton(
             onPressed: () {
               Get.back();
             },
-            icon: Icon(
-              Icons.arrow_back_ios_new_rounded,
-              color: AppColors.appDefaultColor,
-            ),
+            icon: Icon(Icons.arrow_back_ios_new_rounded, color: Colors.blue),
           ),
           title: Text(
             item['title'],
-            style: TextStyle(color: AppColors.appDefaultColor),
+            style: TextStyle(color: Colors.blue),
           ),
           centerTitle: true,
+          actions: [
+            IconButton(
+              icon: Icon(Icons.refresh, color: Colors.blue),
+              onPressed: () {
+                webViewController?.reload();
+              },
+            ),
+          ],
         ),
         body: SafeArea(
           child: Stack(
@@ -120,7 +127,7 @@ class _WebviewScreenState extends State<WebviewScreen> {
                 ),
                 onWebViewCreated: (controller) {
                   webViewController = controller;
-
+                        
                   // JS Handler for file inputs
                   controller.addJavaScriptHandler(
                     handlerName: 'fileInputClicked',
@@ -130,9 +137,8 @@ class _WebviewScreenState extends State<WebviewScreen> {
                   );
                 },
                 onLoadStop: (controller, uri) async {
+                  pullToRefreshController?.endRefreshing();
                   // Inject JS to handle file input
-                  
-                  
                 },
                 onProgressChanged: (controller, progress) {
                   webViewScreenController.progress.value = progress / 100;
@@ -153,8 +159,48 @@ class _WebviewScreenState extends State<WebviewScreen> {
                 onReceivedError: (controller, request, error) {
                   pullToRefreshController?.endRefreshing();
                 },
-              ),
+                onDownloadStartRequest: (controller, request) async {
+                  final url = request.url.toString();
 
+                  if (url.startsWith("blob:")) {
+                    debugPrint("Blob URL detected. Fetching via JS...");
+
+                    // Run JS inside WebView to convert blob to Base64
+                    final base64Data = await controller.evaluateJavascript(
+                      source:
+                      """
+                      (async function() {
+                        const blobUrl = "$url";
+                        const response = await fetch(blobUrl);
+                        const blob = await response.blob();
+                        return new Promise((resolve, reject) => {
+                          const reader = new FileReader();
+                          reader.onloadend = () => resolve(reader.result.split(",")[1]); 
+                          reader.onerror = reject;
+                          reader.readAsDataURL(blob);
+                        });
+                      })();
+                    """,
+                    );
+
+                    if (base64Data != null) {
+                      await _saveBase64File(base64Data, "download.bin");
+                      Get.snackbar(
+                        "Download Complete",
+                        "File saved successfully",
+                      );
+                    } else {
+                      Get.snackbar("Error", "Failed to download blob file.");
+                    }
+                  } else {
+                    debugPrint("Normal file URL: $url");
+                    await _downloadFileHttp(url);
+                  }
+                },
+
+
+              ),
+          
               Obx(
                 () => webViewScreenController.progress.value < 1.0
                     ? LinearProgressIndicator(
@@ -171,6 +217,29 @@ class _WebviewScreenState extends State<WebviewScreen> {
       ),
     );
   }
+
+  Future<void> _saveBase64File(String base64Data, String fileName) async {
+    final bytes = base64Decode(base64Data);
+    final dir = await getExternalStorageDirectory();
+    final filePath = "${dir!.path}/$fileName";
+    final file = File(filePath);
+    await file.writeAsBytes(bytes);
+    debugPrint("File saved to $filePath");
+  }
+  Future<void> _downloadFileHttp(String url) async {
+    if (await Permission.storage.request().isGranted) {
+      final response = await http.get(Uri.parse(url));
+      if (response.statusCode == 200) {
+        final dir = await getExternalStorageDirectory();
+        final fileName = url.split('/').last;
+        final filePath = "${dir!.path}/$fileName";
+        final file = File(filePath);
+        await file.writeAsBytes(response.bodyBytes);
+        debugPrint("File saved to: $filePath");
+      }
+    }
+  }
+
 
   Future<void> _handleFilePicker(InAppWebViewController controller) async {
     if (_isFilePickerActive) return; // Don't open another picker
@@ -213,57 +282,6 @@ class _WebviewScreenState extends State<WebviewScreen> {
       _isFilePickerActive = false;
     }
   }
-  // Future<void> _handleFilePicker(InAppWebViewController controller) async {
-  //   var permissionStatus = await Permission.photos.request();
-  //   if (permissionStatus.isGranted) {
-  //     FilePickerResult? result = await FilePicker.platform.pickFiles(
-  //       type: FileType.any, // Support all file types for ChatGPT
-  //       withData: true,
-  //     );
-  //
-  //     if (result != null && result.files.single.bytes != null) {
-  //       final base64 = base64Encode(result.files.single.bytes!);
-  //       final name = result.files.single.name;
-  //       final mimeType = _getMimeType(result.files.single.extension);
-  //
-  //       await controller.evaluateJavascript(
-  //         source: '''
-  //         console.log('Injecting file: $name, type: $mimeType');
-  //         const fileInput = document.querySelector('input[type=file]');
-  //         if (fileInput) {
-  //           const blob = new Blob([Uint8Array.from(atob("$base64"), c => c.charCodeAt(0))], {type: "$mimeType"});
-  //           const file = new File([blob], "$name", {type: "$mimeType"});
-  //           const dataTransfer = new DataTransfer();
-  //           dataTransfer.items.add(file);
-  //           fileInput.files = dataTransfer.files;
-  //           fileInput.dispatchEvent(new Event('input', { bubbles: true }));
-  //           fileInput.dispatchEvent(new Event('change', { bubbles: true }));
-  //         } else {
-  //           console.log('No file input found');
-  //         }
-  //       ''',
-  //       );
-  //     } else {
-  //       debugPrint('File picker returned no file or bytes');
-  //     }
-  //   } else {
-  //     Get.snackbar("Permission Denied", "Cannot access files.");
-  //   }
-  // }
+  
 
-  String _getMimeType(String? extension) {
-    switch (extension?.toLowerCase()) {
-      case 'jpg':
-      case 'jpeg':
-        return 'image/jpeg';
-      case 'png':
-        return 'image/png';
-      case 'pdf':
-        return 'application/pdf';
-      case 'txt':
-        return 'text/plain';
-      default:
-        return 'application/octet-stream';
-    }
-  }
 }
